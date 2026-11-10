@@ -1,0 +1,47 @@
+name: Maintain TrackWerk website redirects
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/user-pages.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  redirects:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Generate only compatibility redirects
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import html
+          old='/Pocket-Tracker-Extreme/'
+          base='https://kidbee85-beep.github.io/TrackWerk/'
+          page='''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>TrackWerk — website moved</title><link rel="canonical" href="CANONICAL"><meta http-equiv="refresh" content="1;url=CANONICAL"><style>body{margin:8vh auto;padding:2rem;max-width:40rem;background:#100f1a;color:#eae8f5;font:18px/1.7 system-ui,sans-serif}h1{font-size:3rem;letter-spacing:-.05em}a{color:#b8ff72}p{color:#c9c4dc}</style></head><body><h1>TrackWerk</h1><p>The music studio has its own name and website. Your link continues below.</p><p><a id="destination" href="CANONICAL">Continue to TrackWerk →</a></p><script>const old='/Pocket-Tracker-Extreme/';const base='https://kidbee85-beep.github.io/TrackWerk/';const path=location.pathname;const tail=path.startsWith(old)?path.slice(old.length):'';const target=new URL(tail,base);target.search=location.search;target.hash=location.hash;document.getElementById('destination').href=target.href;location.replace(target.href);</script></body></html>'''
+          output=Path('_site');output.mkdir()
+          for relative in ['index.html','404.html','Pocket-Tracker-Extreme/index.html','Pocket-Tracker-Extreme/guide.html','Pocket-Tracker-Extreme/credits.html','Pocket-Tracker-Extreme/press.html','Pocket-Tracker-Extreme/community/index.html']:
+              tail=relative.removeprefix('Pocket-Tracker-Extreme/') if relative.startswith('Pocket-Tracker-Extreme/') else ''
+              canonical=base+tail
+              target=output/relative;target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_text(page.replace('CANONICAL',html.escape(canonical,quote=True)))
+          (output/'.nojekyll').write_text('')
+          print('Generated seven fixed-host TrackWerk redirects; no app or release assets copied')
+          PYTHON
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6.0.0
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: _site
+      - name: Publish compatibility redirects
+        id: deployment
+        uses: actions/deploy-pages@v5.0.1
